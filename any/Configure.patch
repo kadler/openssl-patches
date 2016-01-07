@@ -1,0 +1,22 @@
+*** a/Configure	2015-12-03 08:59:07.000000000 -0600
+--- b/Configure	2015-12-23 17:29:52.687442749 -0600
+***************
+*** 432,437 ****
+--- 432,448 ----
+  "aix-cc",   "cc:-q32 -O -DB_ENDIAN -qmaxmem=16384 -qro -qroconst::-qthreaded -D_THREAD_SAFE:AIX::BN_LLONG RC4_CHAR::aix_ppc32.o::::::::::dlfcn:aix-shared::-q32 -G:.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)::-X 32",
+  "aix64-cc", "cc:-q64 -O -DB_ENDIAN -qmaxmem=16384 -qro -qroconst::-qthreaded -D_THREAD_SAFE:AIX::SIXTY_FOUR_BIT_LONG RC4_CHAR::aix_ppc64.o::::::::::dlfcn:aix-shared::-q64 -G:.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)::-X 64",
+  
++ 
++ #### IBM i (PASE)
++ # Mostly copied from AIX, but PASE port needs to call in to some ILE
++ # procedures, which requires 16-byte alignment for the MI pointers.
++ #
++ # We ensure this in xlc with -qalign=natural -qldbl128 compiler flags
++ "pase-gcc",  "gcc:-O -DB_ENDIAN -D__PASE__::-pthread:PASE::BN_LLONG RC4_CHAR::aix_ppc32.o::::::::::dlfcn:aix-shared::-shared -Wl,-G:.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)::-X 32",
++ "pase64-gcc","gcc:-maix64 -O -DB_ENDIAN -D__PASE__::-pthread:PASE::SIXTY_FOUR_BIT_LONG RC4_CHAR::aix_ppc64.o::::::::::dlfcn:aix-shared::-maix64 -shared -Wl,-G:.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)::-X64",
++ "pase-cc",   "cc:-q32 -O -DB_ENDIAN -qmaxmem=16384 -qro -qroconst -D__PASE__ -qalign=natural -qldbl128::-qthreaded -D_THREAD_SAFE:PASE::BN_LLONG RC4_CHAR::aix_ppc32.o::::::::::dlfcn:aix-shared::-q32 -G:.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)::-X 32",
++ "pase64-cc", "cc:-q64 -O -DB_ENDIAN -qmaxmem=16384 -qro -qroconst -D__PASE__ -qalign=natural -qldbl128::-qthreaded -D_THREAD_SAFE:PASE::SIXTY_FOUR_BIT_LONG RC4_CHAR::aix_ppc64.o::::::::::dlfcn:aix-shared::-q64 -G:.so.\$(SHLIB_MAJOR).\$(SHLIB_MINOR)::-X 64",
++ 
+  #
+  # Cray T90 and similar (SDSC)
+  # It's Big-endian, but the algorithms work properly when B_ENDIAN is NOT

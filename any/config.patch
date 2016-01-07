@@ -1,0 +1,39 @@
+*** a/config	2015-12-03 08:59:07.000000000 -0600
+--- b/config	2015-12-23 17:06:42.555379879 -0600
+***************
+*** 122,127 ****
+--- 122,131 ----
+  	echo "${MACHINE}-ibm-aix3"; exit 0
+  	;;
+  
++     OS400:*)
++     echo "whatever-ibm-pase"; exit 0
++     ;;
++ 
+      dgux:*)
+  	echo "${MACHINE}-dg-dgux"; exit 0
+  	;;
+***************
+*** 765,770 ****
+--- 769,789 ----
+  	    options="$options no-asm"
+  	fi
+  	;;
++   *-pase)
++     OBJECT_MODE=${OBJECT_MODE:-32}
++     if [ "$CC" = "gcc" ]; then
++         OUT="pase-gcc"
++           if [ $OBJECT_MODE -eq 64 ]; then
++             echo 'Your OBJECT_MODE was found to be set to 64'
++             OUT="pase64-gcc"
++           fi
++     elif [ $OBJECT_MODE -eq 64 ]; then
++         echo 'Your OBJECT_MODE was found to be set to 64' 
++         OUT="pase64-cc"
++     else
++         OUT="pase-cc"
++     fi
++     ;;
+    # these are all covered by the catchall below
+    # *-dgux) OUT="dgux" ;;
+    mips-sony-newsos4) OUT="newsos4-gcc" ;;
