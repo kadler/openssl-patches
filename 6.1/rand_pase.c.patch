@@ -1,0 +1,233 @@
+*** a/crypto/rand/rand_pase.c	1969-12-31 18:00:00.000000000 -0600
+--- b/crypto/rand/rand_pase.c	2015-12-28 18:09:37.943088220 -0600
+***************
+*** 0 ****
+--- 1,228 ----
++ /* crypto/rand/rand_pase.c */
++ /* ====================================================================
++  * Copyright (c) 2000-2015 The OpenSSL Project.  All rights reserved.
++  *
++  * Redistribution and use in source and binary forms, with or without
++  * modification, are permitted provided that the following conditions
++  * are met:
++  *
++  * 1. Redistributions of source code must retain the above copyright
++  *    notice, this list of conditions and the following disclaimer.
++  *
++  * 2. Redistributions in binary form must reproduce the above copyright
++  *    notice, this list of conditions and the following disclaimer in
++  *    the documentation and/or other materials provided with the
++  *    distribution.
++  *
++  * 3. All advertising materials mentioning features or use of this
++  *    software must display the following acknowledgment:
++  *    "This product includes software developed by the OpenSSL Project
++  *    for use in the OpenSSL Toolkit. (http://www.openssl.org/)"
++  *
++  * 4. The names "OpenSSL Toolkit" and "OpenSSL Project" must not be used to
++  *    endorse or promote products derived from this software without
++  *    prior written permission. For written permission, please contact
++  *    openssl-core@openssl.org.
++  *
++  * 5. Products derived from this software may not be called "OpenSSL"
++  *    nor may "OpenSSL" appear in their names without prior written
++  *    permission of the OpenSSL Project.
++  *
++  * 6. Redistributions of any form whatsoever must retain the following
++  *    acknowledgment:
++  *    "This product includes software developed by the OpenSSL Project
++  *    for use in the OpenSSL Toolkit (http://www.openssl.org/)"
++  *
++  * THIS SOFTWARE IS PROVIDED BY THE OpenSSL PROJECT ``AS IS'' AND ANY
++  * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
++  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE OpenSSL PROJECT OR
++  * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++  * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++  * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
++  * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++  * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++  * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
++  * OF THE POSSIBILITY OF SUCH DAMAGE.
++  * ====================================================================
++  *
++  * This product includes cryptographic software written by Eric Young
++  * (eay@cryptsoft.com).  This product includes software written by Tim
++  * Hudson (tjh@cryptsoft.com).
++  *
++  */
++ 
++ #include "e_os.h"
++ #include "cryptlib.h"
++ #include <openssl/rand.h>
++ #include "rand_lcl.h"
++ 
++ #include <stdlib.h>
++ #include <stdio.h>
++ #include <errno.h>
++ #include <malloc.h>
++ #include <signal.h>
++ #include <sys/types.h>
++ #include <as400_types.h>
++ #include <as400_protos.h>
++ 
++ #if defined(OPENSSL_SYS_PASE)
++ 
++ /*
++  * ROUND_QUAD finds a 16-byte aligned memory
++  * location at or beyond a specified address
++  * 
++  * xlc does not guarantee 16-byte alignment for
++  * automatic (stack) variables of any type, so we
++  * use ROUND_QUAD on an oversized buffer to ensure
++  * the pointer is 16-byte aligned.
++  */
++ 
++ #define ROUND_QUAD(x) (((intptr_t)(x) + 0xf) & ~0xf)
++ 
++ /*
++  * QUADWORD_ALIGNED_VAR declares a 16-byte aligned pointer
++  * by declaring an oversized buffer and using ROUND_QUAD
++  * to align the data inside the buffer
++  */
++ 
++ #define QUADWORD_ALIGNED_VAR_DECLARE(type, name) \
++ type* name; \
++ char name##_buf[sizeof(type) + 15]
++ 
++ #define QUADWORD_ALIGNED_VAR_INIT(type, name) \
++ name = (type*) (((intptr_t) name##_buf + 0xf) & ~0xf)
++ 
++ #define QUADWORD_ALIGNED_VAR(type, name) \
++ QUADWORD_ALIGNED_VAR_DECLARE(type, name); \
++ QUADWORD_ALIGNED_VAR_INIT(type, name)
++ 
++ 
++ QUADWORD_ALIGNED_VAR_DECLARE(ILEpointer, qc3genprns_ptr);
++ 
++ /*
++  * init_ile loads an ILE service program and extracts an
++  * ILE pointer to a procedure that is exported by that
++  * service program. This pointer is only valid in the
++  * process that extracted it. We'll need to reinitialize
++  * it after a fork, so we keep a static cached value
++  * of the pid that it was initialized in and check
++  * the cached value before re-initializing.
++  * 
++  * We could use pthread_atfork to register a callback
++  * to call init_ile in the child after the fork, but
++  * this code is not in a fast path, so the overhead
++  * of getpid() is neglibile and we don't have to depend
++  * on pthreads then.
++  */
++ static int init_ile()
++ {
++     /* If we haven't forked or have already re-initialized
++      * we're good still
++      */
++     static pid_t init_pid = -1;
++     if (getpid() == init_pid) {
++         return 1;
++     }
++     
++     unsigned long long actmark = _ILELOADX("QSYS/QC3PRNG", ILELOAD_LIBOBJ);
++     if (actmark == -1) {
++         printf("QC3GENPRNS _ILELOADX errno=%d\n", errno);
++         return 0;
++     }
++     
++     QUADWORD_ALIGNED_VAR_INIT(ILEpointer, qc3genprns_ptr);
++     if (_ILESYMX(qc3genprns_ptr, actmark, "Qc3GenPRNs") == -1) {
++         printf("QC3GENPRNS _ILESYMX errno=%d\n", errno);
++         return 0;
++     }
++     
++     /* If we initialized fully, save the pid that we
++      * initialized in
++      */
++     init_pid = getpid();
++     return 1;
++ }
++ 
++ /* PASE wrapper for ILE API Qc3GenPRNs.
++  * We don't take all the same parameters, since
++  * we only care about generating real random bytes,
++  * without parity, and we don't care what the error
++  * was, just that there as one.
++  */
++ int Qc3GenPRNs(void* buffer, int buf_size)
++ {
++     typedef struct Qus_EC {
++         int  Bytes_Provided;
++         int  Bytes_Available;
++         char Exception_Id[7];
++         char Reserved;
++     } Qus_EC_t;
++     
++     Qus_EC_t error_code;
++     
++     error_code.Bytes_Provided = sizeof(error_code);
++     error_code.Bytes_Available = 0;
++     
++     char real_data  = 0xf0;
++     char gen_parity = 0xf0;
++     
++     static result_type_t result_type = RESULT_VOID;
++     static arg_type_t signature[] =
++     {
++         ARG_MEMPTR,
++         ARG_MEMPTR,
++         ARG_MEMPTR,
++         ARG_MEMPTR,
++         ARG_MEMPTR,
++         ARG_END
++     };
++     
++     typedef struct {
++         ILEarglist_base base;
++         ILEpointer arg1;
++         ILEpointer arg2;
++         ILEpointer arg3;
++         ILEpointer arg4;
++         ILEpointer arg5;
++     } arglist_t;
++     
++     QUADWORD_ALIGNED_VAR(arglist_t, arglist);
++     
++     arglist->arg1.s.addr = (address64_t) buffer;
++     arglist->arg2.s.addr = (address64_t) &buf_size;
++     arglist->arg3.s.addr = (address64_t) &real_data;
++     arglist->arg4.s.addr = (address64_t) &gen_parity;
++     arglist->arg5.s.addr = (address64_t) &error_code;
++     
++     int rc = -1;
++     if (init_ile()) {
++         rc = _ILECALL(qc3genprns_ptr,
++                       &arglist->base,
++                       signature,
++                       result_type);
++         
++         if(rc == 0) {
++             rc = (error_code.Bytes_Available > 0);
++         }
++     }
++     
++     return rc;
++ }
++ 
++ int RAND_poll(void)
++ {
++     char buf[ENTROPY_NEEDED];
++     
++     if(Qc3GenPRNs(buf, sizeof(buf)) < 0) {
++         return 0;
++     }
++     
++     RAND_add(buf, sizeof(buf), ENTROPY_NEEDED);
++     memset(buf, 0, sizeof(buf));
++     
++     return 1;
++ }
++ 
++ #endif                          /* OPENSSL_SYS_PASE */
