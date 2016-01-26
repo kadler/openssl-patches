@@ -1,14 +1,12 @@
-*** a/e_os2.h	2015-12-03 08:59:07.000000000 -0600
---- b/e_os2.h	2015-12-22 16:55:32.659442063 -0600
-***************
-*** 202,207 ****
---- 202,210 ----
-  #  if defined(_AIX) || defined(OPENSSL_SYSNAME_AIX)
-  #   define OPENSSL_SYS_AIX
-  #  endif
-+ #  if defined(__PASE__) || defined(OPENSSL_SYSNAME_PASE)
-+ #   define OPENSSL_SYS_PASE
-+ #  endif
-  # endif
-  
-  /* -------------------------------- VOS ----------------------------------- */
+--- a/e_os2.h	2015-12-03 08:59:07.000000000 -0600
++++ b/e_os2.h	2015-12-22 16:55:32.659442063 -0600
+@@ -202,6 +202,9 @@
+ #  if defined(_AIX) || defined(OPENSSL_SYSNAME_AIX)
+ #   define OPENSSL_SYS_AIX
+ #  endif
++#  if defined(__PASE__) || defined(OPENSSL_SYSNAME_PASE)
++#   define OPENSSL_SYS_PASE
++#  endif
+ # endif
+ 
+ /* -------------------------------- VOS ----------------------------------- */
