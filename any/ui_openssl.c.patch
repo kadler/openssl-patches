@@ -1,67 +1,59 @@
-*** a/crypto/ui/ui_openssl.c	2015-12-03 08:59:07.000000000 -0600
---- b/crypto/ui/ui_openssl.c	2015-12-24 18:19:39.575485352 -0600
-***************
-*** 299,304 ****
---- 299,313 ----
-  #endif
-  static FILE *tty_in, *tty_out;
-  static int is_a_tty;
-+ #ifdef OPENSSL_SYS_PASE
-+ int Qp0zIsATerminal(int fd);
-+ int Qp0zSetTerminalMode(unsigned char mode,
-+                         unsigned char type);
-+ #define QP0Z_TERMINAL_INPUT_MODE  0x01
-+ #define QP0Z_TERMINAL_HIDDEN      0xBD
-+ #define QP0Z_TERMINAL_NORMAL      0xBE
-+ static int is_a_5250;
-+ #endif
-  
-  /* Declare static functions */
-  #if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE)
-***************
-*** 491,496 ****
---- 500,512 ----
-          tty_out = stderr;
-  #endif
-  
-+ #if defined(OPENSSL_SYS_PASE)
-+     if (Qp0zIsATerminal(fileno(tty_in)) == 1) {
-+         is_a_tty = 0;
-+         is_a_5250 = 1;
-+         return 1;
-+     }
-+ #endif
-  #if defined(TTY_get) && !defined(OPENSSL_SYS_VMS)
-      if (TTY_get(fileno(tty_in), &tty_orig) == -1) {
-  # ifdef ENOTTY
-***************
-*** 530,535 ****
---- 546,557 ----
-      tty_new.TTY_FLAGS &= ~ECHO;
-  #endif
-  
-+ #if defined(OPENSSL_SYS_PASE)
-+     if ( is_a_5250 && Qp0zSetTerminalMode(QP0Z_TERMINAL_INPUT_MODE,
-+                                           QP0Z_TERMINAL_HIDDEN)) {
-+         return 0;
-+     }
-+ #endif
-  #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
-      if (is_a_tty && (TTY_set(fileno(tty_in), &tty_new) == -1))
-          return 0;
-***************
-*** 554,559 ****
---- 576,588 ----
-      tty_new.TTY_FLAGS |= ECHO;
-  #endif
-  
-+ 
-+ #if defined(OPENSSL_SYS_PASE)
-+     if ( is_a_5250 && Qp0zSetTerminalMode(QP0Z_TERMINAL_INPUT_MODE,
-+                                           QP0Z_TERMINAL_NORMAL)) {
-+         return 0;
-+     }
-+ #endif
-  #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
-      if (is_a_tty && (TTY_set(fileno(tty_in), &tty_new) == -1))
-          return 0;
+--- a/crypto/ui/ui_openssl.c	2015-12-03 08:59:07.000000000 -0600
++++ b/crypto/ui/ui_openssl.c	2015-12-24 18:19:39.575485352 -0600
+@@ -299,6 +299,15 @@
+ #endif
+ static FILE *tty_in, *tty_out;
+ static int is_a_tty;
++#ifdef OPENSSL_SYS_PASE
++int Qp0zIsATerminal(int fd);
++int Qp0zSetTerminalMode(unsigned char mode,
++                        unsigned char type);
++#define QP0Z_TERMINAL_INPUT_MODE  0x01
++#define QP0Z_TERMINAL_HIDDEN      0xBD
++#define QP0Z_TERMINAL_NORMAL      0xBE
++static int is_a_5250;
++#endif
+ 
+ /* Declare static functions */
+ #if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE)
+@@ -491,6 +500,13 @@
+         tty_out = stderr;
+ #endif
+ 
++#if defined(OPENSSL_SYS_PASE)
++    if (Qp0zIsATerminal(fileno(tty_in)) == 1) {
++        is_a_tty = 0;
++        is_a_5250 = 1;
++        return 1;
++    }
++#endif
+ #if defined(TTY_get) && !defined(OPENSSL_SYS_VMS)
+     if (TTY_get(fileno(tty_in), &tty_orig) == -1) {
+ # ifdef ENOTTY
+@@ -530,6 +546,12 @@
+     tty_new.TTY_FLAGS &= ~ECHO;
+ #endif
+ 
++#if defined(OPENSSL_SYS_PASE)
++    if ( is_a_5250 && Qp0zSetTerminalMode(QP0Z_TERMINAL_INPUT_MODE,
++                                          QP0Z_TERMINAL_HIDDEN)) {
++        return 0;
++    }
++#endif
+ #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
+     if (is_a_tty && (TTY_set(fileno(tty_in), &tty_new) == -1))
+         return 0;
+@@ -554,6 +576,13 @@
+     tty_new.TTY_FLAGS |= ECHO;
+ #endif
+ 
++
++#if defined(OPENSSL_SYS_PASE)
++    if ( is_a_5250 && Qp0zSetTerminalMode(QP0Z_TERMINAL_INPUT_MODE,
++                                          QP0Z_TERMINAL_NORMAL)) {
++        return 0;
++    }
++#endif
+ #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
+     if (is_a_tty && (TTY_set(fileno(tty_in), &tty_new) == -1))
+         return 0;
