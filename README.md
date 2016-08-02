@@ -16,7 +16,7 @@ tar -xzf openssl-1.0.2h.tar.gz
 git clone -b 1.0.2 --single-branch https://github.com/kadler/openssl-patches.git patches
 cd openssl-1.0.2h
 cp ../patches/any/*.patch .
-cp ../patches/71/*.patch .
+cp ../patches/7.1/*.patch .
 for f in *.patch
 do
   patch -p1 < $f
