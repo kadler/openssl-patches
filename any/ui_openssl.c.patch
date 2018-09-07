@@ -1,6 +1,6 @@
---- a/crypto/ui/ui_openssl.c	2015-12-03 08:59:07.000000000 -0600
-+++ b/crypto/ui/ui_openssl.c	2015-12-24 18:19:39.575485352 -0600
-@@ -299,6 +299,15 @@
+--- a/crypto/ui/ui_openssl.c	2018-08-15 16:30:58.000000000 +0800
++++ b/crypto/ui/ui_openssl.c	2018-08-15 16:26:31.000000000 +0800
+@@ -301,6 +301,15 @@
  #endif
  static FILE *tty_in, *tty_out;
  static int is_a_tty;
@@ -16,7 +16,7 @@
  
  /* Declare static functions */
  #if !defined(OPENSSL_SYS_WIN16) && !defined(OPENSSL_SYS_WINCE)
-@@ -491,6 +500,13 @@
+@@ -493,6 +502,13 @@
          tty_out = stderr;
  #endif
  
@@ -30,7 +30,7 @@
  #if defined(TTY_get) && !defined(OPENSSL_SYS_VMS)
      if (TTY_get(fileno(tty_in), &tty_orig) == -1) {
  # ifdef ENOTTY
-@@ -530,6 +546,12 @@
+@@ -545,6 +561,12 @@
      tty_new.TTY_FLAGS &= ~ECHO;
  #endif
  
@@ -43,17 +43,16 @@
  #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
      if (is_a_tty && (TTY_set(fileno(tty_in), &tty_new) == -1))
          return 0;
-@@ -554,6 +576,13 @@
-     tty_new.TTY_FLAGS |= ECHO;
- #endif
- 
-+
+@@ -567,6 +589,12 @@
+ {
+ #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
+     memcpy(&(tty_new), &(tty_orig), sizeof(tty_orig));
 +#if defined(OPENSSL_SYS_PASE)
 +    if ( is_a_5250 && Qp0zSetTerminalMode(QP0Z_TERMINAL_INPUT_MODE,
 +                                          QP0Z_TERMINAL_NORMAL)) {
 +        return 0;
 +    }
 +#endif
- #if defined(TTY_set) && !defined(OPENSSL_SYS_VMS)
      if (is_a_tty && (TTY_set(fileno(tty_in), &tty_new) == -1))
          return 0;
+ #endif
